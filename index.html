@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>매장별 EBG 진행현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#14161A;
+    --bg-soft:#1B1E23;
+    --rail:#223038;
+    --rail-line:#33454E;
+    --paper:#EFEAE0;
+    --paper-dark:#E4DDCB;
+    --ink:#23211D;
+    --ink-soft:#6B655A;
+    --p0:#C1392B;
+    --p1:#D98032;
+    --p2:#C7A339;
+    --p3:#5F8B5A;
+    --status-ok:#5F8B5A;
+    --status-wait:#7C8A94;
+    --status-blocked:#C1392B;
+    --status-done:#3A6EA5;
+    --accent:#E2622F;
+    --text-onDark:#EDEAE2;
+    --text-onDark-soft:#9BA3A8;
+    --font-display:'Oswald',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+    --font-body:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text-onDark);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+  button{font-family:inherit;}
+
+  /* ---------- Login gate ---------- */
+  #loginGate{
+    position:fixed;inset:0;background:radial-gradient(circle at 50% 30%, #1B2126, #101215 75%);
+    display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
+  }
+  .login-card{
+    width:100%;max-width:360px;background:var(--bg-soft);border:1px solid var(--rail-line);
+    border-top:3px solid var(--accent);border-radius:8px;padding:30px 28px;box-shadow:0 20px 50px rgba(0,0,0,.5);
+  }
+  .login-card .eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--text-onDark-soft);margin-bottom:10px;}
+  .login-card h2{font-family:var(--font-display);text-transform:uppercase;font-size:22px;margin:0 0 6px;letter-spacing:.02em;}
+  .login-card p.desc{font-size:12.5px;color:var(--text-onDark-soft);margin:0 0 22px;line-height:1.5;}
+  .login-field{margin-bottom:14px;}
+  .login-field label{display:block;font-family:var(--font-mono);font-size:11px;color:var(--text-onDark-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
+  .login-field input{
+    width:100%;padding:10px 12px;background:var(--rail);border:1px solid var(--rail-line);border-radius:5px;
+    color:var(--text-onDark);font-family:var(--font-mono);font-size:14px;outline:none;
+  }
+  .login-field input:focus{border-color:var(--accent);}
+  .login-btn{
+    width:100%;padding:11px;margin-top:6px;background:var(--accent);border:none;border-radius:5px;
+    color:#fff;font-family:var(--font-mono);font-weight:600;font-size:13px;letter-spacing:.04em;
+    text-transform:uppercase;cursor:pointer;
+  }
+  .login-btn:hover{filter:brightness(1.08);}
+  .login-error{color:#E28080;font-size:12px;font-family:var(--font-mono);margin-top:10px;min-height:16px;}
+  .login-card.shake{animation:shake .35s;}
+  @keyframes shake{
+    0%,100%{transform:translateX(0);} 25%{transform:translateX(-8px);}
+    50%{transform:translateX(8px);} 75%{transform:translateX(-6px);}
+  }
+
+  #appRoot{display:none;}
+
+  /* ---------- Header rail ---------- */
+  .rail-header{
+    background:linear-gradient(180deg,var(--bg-soft),var(--bg));
+    border-bottom:3px solid var(--rail-line);
+    padding:28px 32px 20px;
+    position:relative;
+  }
+  .rail-header::after{
+    content:"";position:absolute;left:0;right:0;bottom:-3px;height:3px;
+    background:linear-gradient(90deg,var(--accent),transparent 60%);
+  }
+  .eyebrow{
+    font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--text-onDark-soft);display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;
+  }
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+  @media (prefers-reduced-motion:reduce){.live-dot{animation:none;}}
+  h1{
+    font-family:var(--font-display);font-weight:700;font-size:clamp(26px,3.6vw,40px);
+    letter-spacing:.01em;margin:0 0 6px;text-transform:uppercase;color:var(--text-onDark);
+  }
+  .subtitle{color:var(--text-onDark-soft);font-size:14px;margin:0 0 6px;}
+  .subtitle b{color:var(--text-onDark);font-weight:600;}
+  .freshness{font-family:var(--font-mono);font-size:11.5px;color:#7EA8C4;margin:0 0 20px;}
+
+  .header-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px;}
+  .upload-btn,.reset-data-btn{
+    font-family:var(--font-mono);font-size:11.5px;background:var(--rail);color:var(--text-onDark);
+    border:1px solid var(--rail-line);border-radius:5px;padding:8px 14px;cursor:pointer;
+  }
+  .upload-btn:hover{border-color:var(--accent);}
+  .reset-data-btn{color:var(--text-onDark-soft);background:transparent;}
+  .reset-data-btn:hover{color:var(--text-onDark);border-color:var(--status-blocked);}
+  .upload-status{font-family:var(--font-mono);font-size:11px;color:var(--text-onDark-soft);}
+
+  .stat-row{display:flex;flex-wrap:wrap;gap:10px;}
+  .stat-chip{
+    font-family:var(--font-mono);background:var(--rail);border:1px solid var(--rail-line);
+    border-radius:6px;padding:8px 14px;min-width:96px;
+  }
+  .stat-chip .num{font-size:22px;font-weight:600;line-height:1;display:block;}
+  .stat-chip .lbl{font-size:10px;color:var(--text-onDark-soft);letter-spacing:.06em;text-transform:uppercase;margin-top:4px;display:block;}
+  .stat-chip.wait .num{color:var(--status-wait);}
+  .stat-chip.blocked .num{color:var(--status-blocked);}
+  .stat-chip.done .num{color:var(--status-done);}
+  .stat-chip.voc .num{color:#7EA8C4;}
+
+  /* ---------- Controls ---------- */
+  .controls{
+    background:var(--bg-soft);border-bottom:1px solid var(--rail-line);
+    padding:14px 32px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:5;
+  }
+  .controls select,.controls input{
+    font-family:var(--font-mono);font-size:12.5px;background:var(--rail);color:var(--text-onDark);
+    border:1px solid var(--rail-line);border-radius:5px;padding:8px 10px;outline:none;
+  }
+  .controls select:focus,.controls input:focus{border-color:var(--accent);}
+  .controls input[type="search"]{min-width:220px;}
+  .controls .reset-btn{
+    font-family:var(--font-mono);font-size:12px;background:transparent;color:var(--text-onDark-soft);
+    border:1px solid var(--rail-line);border-radius:5px;padding:8px 12px;cursor:pointer;
+  }
+  .controls .reset-btn:hover{color:var(--text-onDark);border-color:var(--accent);}
+  .count-badge{
+    margin-left:auto;font-family:var(--font-mono);font-size:12.5px;color:var(--text-onDark-soft);
+    white-space:nowrap;
+  }
+  .count-badge b{color:var(--text-onDark);}
+
+  /* ---------- Board / tickets ---------- */
+  .board-wrap{padding:24px 32px 60px;}
+  .board{display:flex;align-items:flex-start;gap:24px;}
+  @media (max-width:900px){.board{flex-direction:column;}}
+
+  .group-section{flex:1;min-width:0;}
+  @media (max-width:900px){.group-section{width:100%;}}
+
+  .group-header{
+    display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+    margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid var(--rail-line);
+  }
+  .group-header h2{
+    font-family:var(--font-display);font-size:22px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.03em;color:var(--accent);margin:0;
+  }
+  .group-meta{display:block;font-family:var(--font-mono);font-size:11.5px;color:var(--text-onDark-soft);line-height:1.5;}
+  .board-grid{display:flex;flex-direction:column;gap:20px;margin-bottom:36px;}
+
+  .ticket{
+    background:var(--paper);color:var(--ink);border-radius:6px;
+    display:flex;flex-direction:column;
+    box-shadow:0 6px 16px rgba(0,0,0,.28);opacity:0;transform:translateY(8px);
+    animation:rise .5s ease forwards;
+  }
+  @media (prefers-reduced-motion:reduce){.ticket{animation:none;opacity:1;transform:none;}}
+  @keyframes rise{to{opacity:1;transform:translateY(0);}}
+
+  .ticket-tab{
+    background:var(--rail);color:var(--text-onDark);padding:12px 16px;border-radius:6px 6px 0 0;
+    cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  }
+  .ticket-tab.is-blocked{background:linear-gradient(90deg,#3A2323,#2A1414);border-left:4px solid var(--status-blocked);}
+  .ticket-tab .store-name{font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:.02em;text-transform:uppercase;}
+  .ticket-tab .meta{font-family:var(--font-mono);font-size:11px;color:var(--text-onDark-soft);white-space:nowrap;}
+  .ticket-tab .caret{font-size:12px;color:var(--text-onDark-soft);transition:transform .2s;}
+  .ticket.collapsed .caret{transform:rotate(-90deg);}
+
+  .perf{position:relative;height:0;margin:0 16px;border-top:2px dashed rgba(35,33,29,.28);}
+  .perf::before,.perf::after{content:"";position:absolute;top:-7px;width:14px;height:14px;border-radius:50%;background:var(--bg);}
+  .perf::before{left:-23px;} .perf::after{right:-23px;}
+
+  .ticket-body{padding:6px 16px 14px;flex:1;}
+  .ticket.collapsed .ticket-body{display:none;}
+
+  .item{padding:12px 0;border-bottom:1px solid rgba(35,33,29,.12);}
+  .item:last-child{border-bottom:none;}
+  .item-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+  .tag{
+    font-family:var(--font-mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:3px;
+    text-transform:uppercase;letter-spacing:.03em;color:#fff;
+  }
+  .tag.cat{background:rgba(35,33,29,.55);}
+  .status-tag{
+    font-family:var(--font-mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:3px;
+    text-transform:uppercase;margin-left:auto;
+  }
+  .status-ok{background:rgba(95,139,90,.18);color:#3E6B3A;}
+  .status-wait{background:rgba(124,138,148,.2);color:#556067;}
+  .status-blocked{background:var(--status-blocked);color:#fff;}
+  .status-done{background:rgba(58,110,165,.18);color:var(--status-done);}
+
+  .item-title{font-weight:600;font-size:14px;margin:0 0 4px;line-height:1.35;}
+  .item-kpi{font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;line-height:1.4;}
+  .item-voc{
+    font-size:12px;font-style:italic;color:#5A4A3A;border-left:2px solid var(--p1);
+    padding:2px 0 2px 8px;margin:0 0 6px;background:rgba(217,128,50,.08);
+  }
+  .item-foot{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);}
+
+  .empty-msg{
+    text-align:center;color:var(--text-onDark-soft);font-family:var(--font-mono);font-size:13px;
+    padding:60px 20px;display:none;
+  }
+
+  footer{
+    text-align:center;color:var(--text-onDark-soft);font-family:var(--font-mono);font-size:11px;
+    padding:18px;border-top:1px solid var(--rail-line);
+  }
+
+  ::selection{background:var(--accent);color:#fff;}
+  select:focus-visible,input:focus-visible,.reset-btn:focus-visible,.ticket-tab:focus-visible,
+  .upload-btn:focus-visible,.reset-data-btn:focus-visible,.login-btn:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;
+  }
+</style>
+</head>
+<body>
+
+<div id="loginGate">
+  <div class="login-card" id="loginCard">
+    <div class="eyebrow">STAFF ONLY · 직원 전용</div>
+    <h2>접속 인증</h2>
+    <p class="desc">로운 매장별 EBG 진행현황입니다. 마스터 아이디와 비밀번호를 입력해주세요.</p>
+    <div class="login-field">
+      <label for="loginId">아이디</label>
+      <input id="loginId" type="text" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label for="loginPw">비밀번호</label>
+      <input id="loginPw" type="password" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="loginBtn">로그인</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div id="appRoot">
+  <header class="rail-header">
+    <div class="eyebrow"><span class="live-dot"></span> LIVE BOARD · <span id="clock">--:--:--</span></div>
+    <h1>매장별 EBG 진행현황</h1>
+    <p class="subtitle">로운 전직원 EBG 제목 및 진척상황</p>
+    <p class="freshness" id="freshness">데이터 기준: 2026-07-15 (기본 데이터)</p>
+    <div class="header-actions">
+      <button class="upload-btn" id="uploadBtn">⤒ 새 엑셀 업로드</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;">
+      <button class="reset-data-btn" id="resetDataBtn">기본 데이터로 초기화</button>
+      <span class="upload-status" id="uploadStatus"></span>
+    </div>
+    <div class="stat-row" id="statRow"></div>
+  </header>
+
+  <div class="controls">
+    <select id="fCategory"><option value="">분류: 전체</option></select>
+    <select id="fStatus"><option value="">상태: 전체</option></select>
+    <input id="fSearch" type="search" placeholder="검색: EBG 제목 · 고객 생소리 · 해결사">
+    <button class="reset-btn" id="resetBtn">필터 초기화</button>
+    <button class="reset-btn" id="toggleAllBtn">전체 접기</button>
+    <span class="count-badge">표시 중 <b id="countShown">0</b> / <span id="countTotal">0</span>건</span>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="empty-msg" id="emptyMsg">조건에 맞는 과제가 없습니다. 필터를 조정해보세요.</div>
+  </div>
+
+  <footer id="footerNote">본 대시보드는 &#39;매장별 EBG 제목&#39; 원본 트래커를 기초로 생성되었습니다.</footer>
+</div>
+
+<script>
+const RAW_DATA = {"stores": ["신촌", "청량리", "평촌", "수원", "중앙로", "강서", "일산", "동탄", "송파", "순천", "괴정", "야탑", "광주역", "부산대", "의정부", "해운대", "광명"], "items": [{"store": "신촌", "voc": "", "title": "단체예약 활성화 통한 매출증대", "solver": "백수희", "category": "매출", "kpi": "26년7월 동매성 전년대비 100%~102% 달성", "priority": "P0", "status": "진행 중", "date": "2026-07-01", "note": ""}, {"store": "신촌", "voc": "음식이 눅눅하다,날파리가 많다", "title": "품질 강화로 고객 만족 상승", "solver": "이시율", "category": "QSCH", "kpi": "맛만족도 90%달성", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "스윙 0.5타임 백업 및 플레이트 교체 진행"}, {"store": "신촌", "voc": "", "title": "서비스 강화로 고객 만족 상승", "solver": "유진우", "category": "만족도", "kpi": "서비스 만족도 85%→95%올리기", "priority": "P2", "status": "진행 중", "date": "2026-07-01", "note": ""}, {"store": "신촌", "voc": "", "title": "매장 관리자별 재고실사 통일화", "solver": "백수희,이시율", "category": "원가", "kpi": "관리자 재고별 실사눈높이 맞추기", "priority": "P3", "status": "진행 중", "date": "2026-07-06", "note": ""}, {"store": "청량리", "voc": "대기시간이 너무 길어요", "title": "회전율 극대화로 대기시간 감축 및 매출 증대", "solver": "문성현", "category": "매출", "kpi": "대기 2팀당 대기시간 5분\n월 회전율 3.5이상", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "이츠타임 대기팀 및 대기시간 체크\n평일, 주말 회전율 확인"}, {"store": "청량리", "voc": "", "title": "원가안정화로 인한 매장 영업이익 2% 증가 ", "solver": "윤성식", "category": "원가", "kpi": "원가 34% -> 32%", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": ""}, {"store": "청량리", "voc": "음식이 전체적으로 너무 짜요", "title": "품질 강화를 통한 고객 만족도 상승", "solver": "배유정", "category": "만족도", "kpi": "만족도 4.7\n품질만족도 90%", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": ""}, {"store": "평촌", "voc": "", "title": "네이버 예약 활성화를 통한 재방문율 상승", "solver": "권명수", "category": "매출", "kpi": "전년대비 동매성8%상승", "priority": "P1", "status": "진행 중", "date": "2026-07-14", "note": "평촌점 네이버 구독 알림 서비스 시작(구독 고객 반반냄비 업그레이드 제공)"}, {"store": "평촌", "voc": "어르신들이 키오스크 사용이 어려워 헤메고 있는데\n 직원들은 아무런 관심이 없다.", "title": "직원교욱을 통한  고객 만족도 ", "solver": "이은호", "category": "만족도", "kpi": "고객 평점 4.6이상\n달성", "priority": "P1", "status": "진행 중", "date": "2026-07-14", "note": "주마다 불만글 취합하여 리스트화 이후 전체 인원들에게 \n전달및 재교육진행"}, {"store": "평촌", "voc": "음식이 짜다,간이안맞는다", "title": "레시피 준수 품질 유지 균일화", "solver": "장성길", "category": "만족도", "kpi": "80%이상 음식 퀄리티 만족도 상승", "priority": "P2", "status": "진행 중", "date": "2026-07-14", "note": "레시피 준수 할 수 있도록 소스 레들 용도의 맞게 라벨링 진행 , 스윙타임, 디너 시작전 반타임 조리 교체폐기 진행 퀄리티 유지"}, {"store": "수원", "voc": "", "title": "비성수기 7월 안분 후 흑자 구조 만들기", "solver": "구수민", "category": "영업이익", "kpi": "7월 매출 1.1억", "priority": "P0", "status": "진행 중", "date": "2026-07-01", "note": "7월 목표 숫자에 맞춰 타이트하게 조절 필요"}, {"store": "수원", "voc": "불친절, 매장 미청결", "title": "매장 이용 후 만족하여 다시 찾게 만드는 매장 만들기", "solver": "김도원", "category": "QSCH", "kpi": "7월 평점 4.6", "priority": "P1", "status": "진행 중", "date": "2026-07-14", "note": "매장 이동 후 고객 날소리 확인 후 이칼 리스트 작성 1순위 진행"}, {"store": "수원", "voc": "", "title": "매장 내 문제점 파악하여 원가 38% 유지 매장 만들기", "solver": "현소연", "category": "원가", "kpi": "7월 원가 38%", "priority": "P2", "status": "진행 중", "date": "2026-07-14", "note": "주방 F1 이동 후 매장 식자재 관리, 발주 담당으로 점장 크로스 관리로 원가 집중"}, {"store": "중앙로", "voc": "", "title": "3분기 비수기 지표관리_ 안분 후 영업이익 목표", "solver": "강한림", "category": "영업이익", "kpi": "안분후 100만원", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "7월 아미스 재설계 및 역기획을 통한 영업 진행 "}, {"store": "중앙로", "voc": "음식리필,음식품질,매장청결,매장온도", "title": "[베이직강화]를 통한 고객 평점 상향 목표\n", "solver": "김무진", "category": "만족도", "kpi": "평점4.6", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "E-CAL , 만족도 조사"}, {"store": "중앙로", "voc": "", "title": "생산성 향상 목표 ", "solver": "박민정", "category": "인건비", "kpi": "생산성 95%", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "멀티포켓 만들어 진행중"}, {"store": "강서", "voc": "마감시간대 음식이 잘 채워줬으면 좋겠다", "title": "시간대별 적정 인원 배치로 음식 백업 속도 업", "solver": "고상철 매니저", "category": "만족도", "kpi": "고객 평점 4.6점 이상", "priority": "P1", "status": "진행 중", "date": "2026-07-05", "note": "채용 사이트 업데이트 지속\n시니어 채용 신청"}, {"store": "강서", "voc": "아이스크림 기계의 위생상태가 안좋음", "title": "마감 프로시저 재정비를 통한 청결 개선", "solver": "장예지 헤드", "category": "QSCH", "kpi": "청결점수 80점이상", "priority": "P1", "status": "시작 전", "date": "2026-07-14", "note": "마감 업무 업데이트"}, {"store": "강서", "voc": "감자칩 눅눅하고 마라육수 너무너무 짜요", "title": "메뉴 제조 재교육을 통한 품질 개선과 만족도 항상", "solver": "윤현석 헤드", "category": "만족도", "kpi": "고객 평점 4.6점 이상", "priority": "P1", "status": "진행 중", "date": "2026-07-14", "note": "샐러드바 및 육수 검식 ,메뉴얼 ,레시피 재교육"}, {"store": "일산", "voc": "", "title": "안분 후 흑자 전환하기", "solver": "김현기 GM", "category": "영업이익", "kpi": "안분 후 2%", "priority": "P1", "status": "진행 중", "date": "2026-06-30", "note": ""}, {"store": "일산", "voc": "", "title": "메이트 베이직 강화 및 교육을 통한 평점 관리라기", "solver": "박가람 HT", "category": "영업이익", "kpi": "고객평점 4.5", "priority": "P2", "status": "진행 중", "date": "2026-06-30", "note": "본인이 느끼는 문제점 확인하기"}, {"store": "일산", "voc": "", "title": "실사 기준 확인 및 재고조절을 통한 원가 조절하기", "solver": "강다윤 MGR", "category": "원가", "kpi": "7월 월말 원가 39%", "priority": "P2", "status": "진행 중", "date": "2026-06-30", "note": "자재별 실사기준 확인 중(프랩기준)"}, {"store": "일산", "voc": "", "title": "주방 마감 프로세스 변화를 통한 해충 없애기", "solver": "관리자 전체", "category": "QSCH", "kpi": "바퀴 클레임 0건", "priority": "P1", "status": "진행 중", "date": "2026-07-11", "note": ""}, {"store": "동탄", "voc": "첫주문 고기 이후 리필 고기 퀄리티가 떨어지는거 같아요", "title": "육절기 반합 퀄리티 개선 및 메뉴얼 재확립", "solver": "이병곤", "category": "만족도", "kpi": "리뷰 맛 90% 이상", "priority": "P1", "status": "진행 중", "date": "2026-06-30", "note": "와규전각,부채살,파지처리 SOP 제작"}, {"store": "동탄", "voc": "매장 재고금액이 타매장 대비 높다", "title": "발주par 재설정 재고보유일수 낮추기", "solver": "이병곤", "category": "원가", "kpi": "재고보유일수 4일", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "불용자재 소진 및 발주PAR 재설정"}, {"store": "동탄", "voc": "", "title": "PJ 안분후 흑자 만들기 - 적정 인건비", "solver": "송아름", "category": "인건비", "kpi": "안분후 1%", "priority": "P1", "status": "진행 중", "date": "2025-07-01", "note": "인건비 절감을 위해 생산성 및 멀티력 향상"}, {"store": "송파", "voc": "야채가 시들하다", "title": "신선한 야채 제공", "solver": "권승혁", "category": "만족도", "kpi": "야채생소리 월0건", "priority": "P1", "status": "시작 전", "date": "2026-07-14", "note": "발주량 조절 및 검품 확인필수"}, {"store": "송파", "voc": "", "title": "자연별곡,애슐리오픈으로 인한 이탈고객 잡기", "solver": "이정연", "category": "QSCH", "kpi": "고객리뷰4.6", "priority": "P1", "status": "시작 전", "date": "2026-07-14", "note": "현재 4.48점, "}, {"store": "송파", "voc": "", "title": "멀티 인재 늘리기", "solver": "박소연", "category": "기타", "kpi": "1인 2파트 이상", "priority": "P2", "status": "중단됨", "date": "", "note": "레시피 테스트 진행, 파트 이동"}, {"store": "순천", "voc": "", "title": "스윙타임  입점혜택으로 매출증대 ", "solver": "이유진", "category": "매출", "kpi": "7월매출 1.1억 달성", "priority": "P2", "status": "진행 중", "date": "2026-07-14", "note": "애슐리&식당브레이크타임시 해당매장 \n입점가능 홍보 및 혜택에 대한 알리기 "}, {"store": "순천", "voc": "", "title": "고객날소리 4.75점 달성", "solver": "임다빈", "category": "만족도", "kpi": "날소리 4.75점 달성", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "메아리 인사&테이블안내 \n퇴점시 만족도 체크진행"}, {"store": "괴정", "voc": "며칠전에는 퀄리티가 좋았는데.. ", "title": "메뉴 퀄리티 유지 및 관리 ", "solver": "신지영", "category": "QSCH", "kpi": "리뷰 맛 90% 달성", "priority": "P1", "status": "진행 중", "date": "2026-07-13", "note": "시간대별 음식 세팅량/재조리 교육 진행 중 "}, {"store": "괴정", "voc": "", "title": "서비스 평점 높히기", "solver": "박연실", "category": "기타", "kpi": "생소리 서비스 평점 73%>85 달성", "priority": "P1", "status": "진행 중", "date": "2026-07-14", "note": "메아리인사, 첫만남 교육 진행"}, {"store": "야탑", "voc": "", "title": "신규고객 유입 및 신규고객 재방문 유도를 통한 동매선 -10%로 매출 회복", "solver": "최송이", "category": "매출", "kpi": "동매성-10%", "priority": "P0", "status": "시작 전", "date": "2026-07-14", "note": "당근무료광고진행/ 반반냄비 쿠폰 생성 완료"}, {"store": "야탑", "voc": "", "title": "평균 원가 측정 후  유지 관리 목표", "solver": "전재호", "category": "원가", "kpi": "원가 32%", "priority": "P1", "status": "시작 전", "date": "2026-07-13", "note": "매주 월요일 및 월말 실사 시 원가 변화 측정"}, {"store": "야탑", "voc": "직원 기본 교육 다시 시켜야 할듯", "title": "서비스 품질 관리", "solver": "박태령", "category": "만족도", "kpi": "평점 4.6", "priority": "P2", "status": "시작 전", "date": "2026-07-14", "note": "서비스 관련 질의응답표 작성"}, {"store": "광주역", "voc": "", "title": "영업이익 흑자 달성 매장 만들기", "solver": "정수현", "category": "매출", "kpi": "안분후 1%", "priority": "P0", "status": "시작 전", "date": "2026-07-14", "note": "F/L 타이트 하게 운영, 인건비 18.2%,원가37.5%"}, {"store": "광주역", "voc": "", "title": "홀서비스 극대화를 통해 부정 날소리\nzero 고객 만족도 우수 매장 만들기", "solver": "김정인", "category": "영업이익", "kpi": "고객 날소리 부정비율 1.5% 이하\n", "priority": "P1", "status": "진행 중", "date": "", "note": "\"홀 메이트 메아리 인사, 웃음 교육\n▶근무 중 메이트 인사 무전 교육 및 카톡방 재공유\"\n"}, {"store": "광주역", "voc": "", "title": "고객 날소리 맛 만족도 96점이상 유지하기\n", "solver": "정우진", "category": "인건비", "kpi": "맛 만족도 96점 이상", "priority": "P2", "status": "중단됨", "date": "", "note": "\"타임별 셀러드 바 메뉴 퀄리티 통일\n(레시피 준수확인 및 재교육, 크리티컬 포인트 강조)\n▶직원들 레시피 준수 확인, 레들 확인\"\n"}, {"store": "부산대", "voc": "고기 가져가는게 다소 힘들어요, 냉우동은 면의 익기가 매우아쉬웠습니다", "title": "음식품질 상향평준화", "solver": "장산하 헤드", "category": "만족도", "kpi": "고객 리뷰 4.8 달성", "priority": "P3", "status": "진행 중", "date": "2026-07-13", "note": "메이트 전체 레시피 교육"}, {"store": "부산대", "voc": "결제하고 자리찾아가는데 손님이 마음대로자리옴긴걸 대처를못하고 우리가 다른자리에 앉아야대는 이상한상황이 이르어졌고 머가없다고하면 바로바로처리도 안댐", "title": "직원교육을 통한 고객만족도 향상", "solver": "이정윤 점장", "category": "만족도", "kpi": "고객 리뷰 4.8 달성", "priority": "P1", "status": "진행 중", "date": "2026-07-13", "note": "홀서비스 매뉴얼 숙지, 정확하고 빠른 서비스 전파교육"}, {"store": "의정부", "voc": "", "title": "변동비 조절하여 안분 후 영업이익 5%이상 달성", "solver": "이윤영 점장", "category": "영업이익", "kpi": "안분 후 영업이익 5%", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "매출에 따른 인원 재조정하여 세팅 진행"}, {"store": "의정부", "voc": "면들이 뚝뚝 끊긴다,", "title": "샐러드바 품질 강화를 통한 단골고객 만들기", "solver": "이주헌 매니저", "category": "영업이익", "kpi": "맛 만족도 90 이상", "priority": "", "status": "진행 중", "date": "", "note": ""}, {"store": "의정부", "voc": "접시가 지저분해요", "title": "기물 청결관리로 고객 만족도 향상", "solver": "엄상원HT", "category": "만족도", "kpi": "청결관련 JJ 0개", "priority": "P1", "status": "진행 중", "date": "2026-07-01", "note": "식세기 문제 파악 후 행굼 분사구 A/S 진행 기물 청결 상태 모니터링 중"}, {"store": "해운대", "voc": "1. 나이가 들어서 예약을 어떻게 하는지 몰라 일찍와서 현장 예약하려 왔지만 당일 예약 불가 안내 받음\n2. 어른들  모시고 가려는데 인원도 많고 당일 예약이 안되서 방문이 꺼려짐", "title": "예약규제완화를 통해 예약1200명/매출 2억 달성", "solver": "박호길 점장", "category": "매출", "kpi": "매출 15% 성장\n예약건수 200% 상승", "priority": "P1", "status": "진행 중", "date": "2026-06-30", "note": "예약가능 시간 전 시간대 개방\n일일 최대 예약인원 100명 설정\n당일 예약 현장접수"}, {"store": "해운대", "voc": "돼지고기가 녹아 퀄리티가 안좋다고 하심", "title": "고기 취식량 분산을 통해 고기원가 절감", "solver": "오세윤 캡틴", "category": "원가", "kpi": "고기원가율 1% 감소", "priority": "P1", "status": "진행 중", "date": "2026-06-30", "note": "1차 방향성 : 돼지고기 터치율 상승을 위한 팬단 고기 1단 쌓기 진행\n퀄리티 높은 돌돌이 형태 유지를 위한 냉동고 온도 재설정 -3~5도"}, {"store": "해운대", "voc": "직원들의 잦은 이탈로 개인의 업무량이 늘어나 불만", "title": "내실관리와 너츠문화를 통해 내부 성장 직원 양성", "solver": "송명수 헤드", "category": "기타", "kpi": "A급 리더 3명 양성\n/서비스 4.7 달성", "priority": "P1", "status": "진행 중", "date": "2026-06-30", "note": "너츠 문화 정립을 위해 메이트 대상으로 아이디어, 참여여부 등 스몰톡을 통해 취합\n매장 2, 4주차 월요일 매장정기휴무일 활용하여 진행할 수 있는 단체 활동 및 너츠 문화 활성화 구상중"}, {"store": "광명", "voc": "매장이 너무 춥다&덥다", "title": "고객평점상승", "solver": "전향유", "category": "만족도", "kpi": "고객평점 4.5달성", "priority": "P0", "status": "진행 중", "date": "2026-07-14", "note": "더운고객님을 위한 선풍기설치 의견 컨펌중  "}, {"store": "광명", "voc": "음식이 리필이 안된다.", "title": "고객만족 상승", "solver": "오병윤", "category": "만족도", "kpi": "생소리 0건", "priority": "P1", "status": "진행 중", "date": "", "note": "셀러드바 직원 수시 체크 지시, 주방 직원 음식제조 방식 개선"}, {"store": "광명", "voc": "가족 모임 예약 해서 오고 싶은데 예약이 안된다", "title": "고객의 니즈 해결을 통한 만족도 및 매출 상승", "solver": "조재훈", "category": "매출", "kpi": "일 평균 30만원 상승", "priority": "P2", "status": "중단됨", "date": "2026-07-14", "note": "평일 디너 19:00 까지 예약 가능 변경 / 평일 20:00 이후 입점 고객 유도를 위한 영업시간 펫말 -> 바로 입장 멘트 변경 하여 유도"}]};
+</script>
+<script>
+/* ============================================================
+   설정: 마스터 로그인 정보
+   ⚠️ 이 파일은 브라우저에서 그대로 실행되는 정적 페이지입니다.
+   아래 아이디/비밀번호는 "페이지 소스 보기"로 누구나 확인할 수 있어
+   실제 보안 수단이 아니라 캐주얼한 접근을 막는 정도의 장치입니다.
+   진짜 비공개가 필요하면 Claude의 "조직 내부 공유(Share)" 기능을 사용하세요.
+   아이디/비밀번호를 바꾸려면 아래 두 줄만 수정하면 됩니다.
+============================================================ */
+const MASTER_ID = 'ru_100';
+const MASTER_PW = 'ebg2026!';
+
+const STORAGE_KEY = 'ebg_dashboard_data';
+
+/* ==================== 로그인 게이트 ==================== */
+function attemptLogin(){
+  const id = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  const errorEl = document.getElementById('loginError');
+  const card = document.getElementById('loginCard');
+
+  if(id === MASTER_ID && pw === MASTER_PW){
+    document.getElementById('loginGate').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    initApp();
+  } else {
+    errorEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+    card.classList.remove('shake');
+    void card.offsetWidth; // reflow to restart animation
+    card.classList.add('shake');
+  }
+}
+document.getElementById('loginBtn').addEventListener('click', attemptLogin);
+document.getElementById('loginPw').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+document.getElementById('loginId').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+
+/* ==================== live clock ==================== */
+function tick(){
+  const now = new Date();
+  const el = document.getElementById('clock');
+  if(el) el.textContent = now.toLocaleTimeString('ko-KR',{hour12:false});
+}
+setInterval(tick, 1000);
+
+/* ==================== 상태(데이터) ==================== */
+let DATA = { stores: [], items: [] };           // 현재 화면에 쓰이는 데이터
+const DEFAULT_DATA = RAW_DATA;                   // 최초 임베드된 기본 스냅샷(2026-07-15 기준)
+const PRIO_ORDER = {P0:0,P1:1,P2:2,P3:3,'':9};
+
+function prioColor(p){
+  return {P0:'var(--p0)',P1:'var(--p1)',P2:'var(--p2)',P3:'var(--p3)'}[p] || '#888';
+}
+function statusClass(s){return {'진행 중':'status-ok','시작 전':'status-wait','중단됨':'status-blocked','완료됨':'status-done'}[s] || 'status-wait';}
+function uniqueSorted(arr){return [...new Set(arr)].filter(Boolean).sort();}
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ==================== 렌더링 ==================== */
+function renderStats(){
+  const items = DATA.items;
+  const total = items.length;
+  const suspended = items.filter(i=>i.status==='중단됨').length;
+  const completed = items.filter(i=>i.status==='완료됨').length;
+  const running = items.filter(i=>i.status==='진행 중').length;
+  const waiting = items.filter(i=>i.status==='시작 전').length;
+  const voc = items.filter(i=>i.voc && i.voc.trim().length>0).length;
+  const chips = [
+    {label:'전체 과제', val:total, cls:''},
+    {label:'진행 중', val:running, cls:''},
+    {label:'시작 전', val:waiting, cls:'wait'},
+    {label:'중단됨', val:suspended, cls:'blocked'},
+    {label:'완료됨', val:completed, cls:'done'},
+    {label:'고객생소리 기반', val:(total? (voc+' / '+total) : '0 / 0'), cls:'voc'},
+  ];
+  document.getElementById('statRow').innerHTML = chips.map(c=>
+    `<div class="stat-chip ${c.cls}"><span class="num">${c.val}</span><span class="lbl">${c.label}</span></div>`
+  ).join('');
+  document.getElementById('countTotal').textContent = total;
+}
+
+function populateFilterOptions(){
+  const catSel = document.getElementById('fCategory');
+  const statusSel = document.getElementById('fStatus');
+  [catSel, statusSel].forEach(sel=>{
+    while(sel.options.length > 1) sel.remove(1);
+  });
+  uniqueSorted(DATA.items.map(i=>i.category)).forEach(v=>{
+    const opt = document.createElement('option'); opt.value=v; opt.textContent=v; catSel.appendChild(opt);
+  });
+  uniqueSorted(DATA.items.map(i=>i.status)).forEach(v=>{
+    const opt = document.createElement('option'); opt.value=v; opt.textContent=v; statusSel.appendChild(opt);
+  });
+}
+
+// 매장을 3개 셀(그룹)로 묶어서 보여준다. 그룹에 속하지 않은 매장이 데이터에 있으면
+// '미분류' 그룹으로 따로 모아 누락 없이 표시한다.
+const STORE_GROUPS = [
+  { name: '1셀', stores: ['강서','야탑','송파','의정부','일산'] },
+  { name: '2셀', stores: ['부산대','괴정','순천','광주역','청량리','해운대'] },
+  { name: '3셀', stores: ['동탄','광명','평촌','신촌','중앙로','수원'] },
+];
+
+function buildTicketEl(store, filtered){
+  const storeItemsAll = DATA.items.filter(i=>i.store===store);
+  const storeItemsShown = filtered.filter(i=>i.store===store)
+    .sort((a,b)=>(PRIO_ORDER[a.priority]??9)-(PRIO_ORDER[b.priority]??9));
+  if(storeItemsShown.length===0) return null;
+
+  const suspendedCount = storeItemsAll.filter(i=>i.status==='중단됨').length;
+  const completedCount = storeItemsAll.filter(i=>i.status==='완료됨').length;
+  const runningCount = storeItemsAll.filter(i=>i.status==='진행 중').length;
+  const waitingCount = storeItemsAll.filter(i=>i.status==='시작 전').length;
+
+  const ticket = document.createElement('div');
+  ticket.className = 'ticket';
+
+  const itemsHtml = storeItemsShown.map(i=>`
+    <div class="item">
+      <div class="item-top">
+        <span class="tag" style="background:${prioColor(i.priority)}">${i.priority||'-'}</span>
+        <span class="tag cat">${escapeHtml(i.category)||'-'}</span>
+        <span class="status-tag ${statusClass(i.status)}">${escapeHtml(i.status)||'-'}</span>
+      </div>
+      <p class="item-title">${escapeHtml(i.title)}</p>
+      <p class="item-kpi">🎯 ${escapeHtml(i.kpi)||'-'}</p>
+      ${i.voc ? `<p class="item-voc">“${escapeHtml(i.voc)}”</p>` : ''}
+      <div class="item-foot"><span>${escapeHtml(i.solver)||'-'}</span><span>${escapeHtml(i.date)||'-'}</span></div>
+    </div>
+  `).join('');
+
+  ticket.innerHTML = `
+    <div class="ticket-tab ${suspendedCount>0?'is-blocked':''}" tabindex="0" role="button" aria-expanded="true">
+      <span class="store-name">${escapeHtml(store)}</span>
+      <span class="meta">${storeItemsShown.length}/${storeItemsAll.length}건 · 진행중 ${runningCount} · 시작전 ${waitingCount} · 중단 ${suspendedCount} · 완료 ${completedCount}</span>
+      <span class="caret">▼</span>
+    </div>
+    <div class="perf"></div>
+    <div class="ticket-body">${itemsHtml}</div>
+  `;
+  ticket.querySelector('.ticket-tab').addEventListener('click', ()=>{
+    toggleTicketCollapse(ticket);
+  });
+  return ticket;
+}
+
+function renderBoard(filtered){
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  let shownAny = 0;
+  let animIdx = 0;
+
+  const groupedStoreSet = new Set(STORE_GROUPS.flatMap(g=>g.stores));
+  const ungrouped = DATA.stores.filter(s=>!groupedStoreSet.has(s));
+  const groups = ungrouped.length>0 ? [...STORE_GROUPS, {name:'미분류', stores:ungrouped}] : STORE_GROUPS;
+
+  groups.forEach(group=>{
+    const groupStores = group.stores.filter(s=>DATA.stores.includes(s));
+    const ticketEls = [];
+    groupStores.forEach(store=>{
+      const el = buildTicketEl(store, filtered);
+      if(el){
+        animIdx++;
+        el.style.animationDelay = (Math.min(animIdx,20)*0.03)+'s';
+        ticketEls.push(el);
+      }
+    });
+    if(ticketEls.length===0) return;
+    shownAny += ticketEls.length;
+
+    const section = document.createElement('div');
+    section.className = 'group-section';
+    section.innerHTML = `
+      <div class="group-header">
+        <h2>${escapeHtml(group.name)}</h2>
+        <span class="group-meta">${escapeHtml(groupStores.join(' · '))}</span>
+      </div>
+    `;
+    const grid = document.createElement('div');
+    grid.className = 'board-grid';
+    ticketEls.forEach(el=>grid.appendChild(el));
+    section.appendChild(grid);
+    board.appendChild(section);
+  });
+
+  document.getElementById('emptyMsg').style.display = shownAny===0 ? 'block' : 'none';
+}
+
+function toggleTicketCollapse(ticket){
+  const collapsing = !ticket.classList.contains('collapsed');
+  ticket.classList.toggle('collapsed', collapsing);
+  if(collapsing){
+    ticket.style.height = 'auto';
+  } else {
+    const h = ticket.dataset.equalizedHeight;
+    ticket.style.height = h ? h+'px' : 'auto';
+  }
+}
+
+// 3. 매장별 카드의 높이를 서로 맞춘다 (내용이 짧은 매장의 카드도 가장 긴 카드 기준으로 통일).
+function equalizeTicketHeights(){
+  const tickets = document.querySelectorAll('.ticket:not(.collapsed)');
+  if(tickets.length===0) return;
+  tickets.forEach(t=>{ t.style.height='auto'; });
+  let max = 0;
+  tickets.forEach(t=>{ max = Math.max(max, t.getBoundingClientRect().height); });
+  tickets.forEach(t=>{
+    t.style.height = max+'px';
+    t.dataset.equalizedHeight = String(max);
+  });
+}
+
+function applyFilters(){
+  const cat = document.getElementById('fCategory').value;
+  const status = document.getElementById('fStatus').value;
+  const q = document.getElementById('fSearch').value.trim().toLowerCase();
+
+  const filtered = DATA.items.filter(i=>{
+    if(cat && i.category!==cat) return false;
+    if(status && i.status!==status) return false;
+    if(q){
+      const hay = (i.title+' '+i.voc+' '+i.solver+' '+i.kpi).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('countShown').textContent = filtered.length;
+  renderBoard(filtered);
+  equalizeTicketHeights();
+}
+
+function renderAll(){
+  renderStats();
+  populateFilterOptions();
+  applyFilters();
+}
+
+['fCategory','fStatus'].forEach(id=>document.getElementById(id).addEventListener('change', applyFilters));
+document.getElementById('fSearch').addEventListener('input', applyFilters);
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  document.getElementById('fCategory').value='';
+  document.getElementById('fStatus').value='';
+  document.getElementById('fSearch').value='';
+  applyFilters();
+});
+
+let allCollapsed = false;
+document.getElementById('toggleAllBtn').addEventListener('click', (e)=>{
+  allCollapsed = !allCollapsed;
+  document.querySelectorAll('.ticket').forEach(t=>{
+    t.classList.toggle('collapsed', allCollapsed);
+    if(allCollapsed){
+      t.style.height = 'auto';
+    } else {
+      const h = t.dataset.equalizedHeight;
+      t.style.height = h ? h+'px' : 'auto';
+    }
+  });
+  e.target.textContent = allCollapsed ? '전체 펼치기' : '전체 접기';
+});
+
+/* ==================== 엑셀 실시간 업로드 & 파싱 ==================== */
+function normStr(v){
+  if(v===null || v===undefined) return '';
+  return String(v).trim();
+}
+
+function normDate(v){
+  if(v===null || v===undefined || v==='') return '';
+  if(v instanceof Date && !isNaN(v)){
+    return v.toISOString().slice(0,10);
+  }
+  if(typeof v === 'number'){
+    if(v>=20200101 && v<=20301231){
+      const s = String(Math.trunc(v));
+      return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+    }
+    // Excel 날짜 일련번호로 추정되는 범위
+    if(v>20000 && v<60000){
+      const epoch = Date.UTC(1899,11,30);
+      const dt = new Date(epoch + Math.round(v)*86400000);
+      if(!isNaN(dt)) return dt.toISOString().slice(0,10);
+    }
+    return String(v);
+  }
+  let s = String(v).trim().replace(/\.$/, '');
+  let m = s.match(/^(\d{2,4})[.\-](\d{1,2})[.\-](\d{1,2})$/);
+  if(m){
+    let y = parseInt(m[1],10), mo = parseInt(m[2],10), d = parseInt(m[3],10);
+    if(y < 100) y += 2000;
+    const dt = new Date(Date.UTC(y, mo-1, d));
+    if(!isNaN(dt)) return dt.toISOString().slice(0,10);
+  }
+  const dt2 = new Date(s);
+  if(!isNaN(dt2)) return dt2.toISOString().slice(0,10);
+  return s;
+}
+
+function isPlaceholderTitle(v){
+  const s = normStr(v);
+  return s === '' || s === 'EBG 제목';
+}
+
+// SheetJS(xlsx)로 읽은 row 객체를 공통 아이템 형태로 변환한다.
+// 시트에 '주요 기록'류 placeholder 문구만 채워진 미사용 행(EBG 제목 = 'EBG 제목' 또는 공백)은 제외한다.
+function rowToItem(row, storeName){
+  const title = row['EBG 제목'];
+  if(isPlaceholderTitle(title)) return null;
+  const keys = Object.keys(row);
+  const recKey = keys.find(k=>k && k.includes('주요 기록'));
+  return {
+    store: storeName,
+    voc: normStr(row['찾은 고객 생소리']),
+    title: normStr(title),
+    solver: normStr(row['해결사']),
+    category: normStr(row['분류']),
+    kpi: normStr(row['목표 KPI']),
+    priority: normStr(row['우선순위']),
+    status: normStr(row['상태']),
+    date: normDate(row['시작일']),
+    note: recKey ? normStr(row[recKey]) : '',
+  };
+}
+
+function parseWorkbook(workbook){
+  const stores = [];
+  const items = [];
+  workbook.SheetNames.forEach(sheetName=>{
+    const ws = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, {defval: null, raw: true});
+    if(!rows || rows.length===0) return;
+    stores.push(sheetName);
+    rows.forEach(r=>{
+      const item = rowToItem(r, sheetName);
+      if(item) items.push(item);
+    });
+  });
+  return { stores, items };
+}
+
+async function handleFile(file){
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.textContent = '읽는 중...';
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    const parsed = parseWorkbook(wb);
+    if(parsed.items.length===0){
+      statusEl.textContent = '⚠ 유효한 EBG 항목을 찾지 못했습니다. 파일 형식을 확인해주세요.';
+      return;
+    }
+    const payload = { stores: parsed.stores, items: parsed.items, updatedAt: new Date().toISOString(), sourceFile: file.name };
+    DATA = payload;
+    renderAll();
+    setFreshness(payload);
+    statusEl.textContent = `✔ ${file.name} 반영 완료 (${parsed.items.length}건)`;
+
+    try{
+      await window.storage.set(STORAGE_KEY, JSON.stringify(payload), true);
+      statusEl.textContent += ' · 공유 저장됨(링크를 가진 모두에게 반영)';
+    }catch(e){
+      statusEl.textContent += ' · ⚠ 공유 저장 실패(이 화면에만 적용됨)';
+      console.error('storage.set failed', e);
+    }
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '⚠ 파일을 읽지 못했습니다. .xlsx 파일인지 확인해주세요.';
+  }
+}
+
+document.getElementById('uploadBtn').addEventListener('click', ()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file) handleFile(file);
+  e.target.value = '';
+});
+
+document.getElementById('resetDataBtn').addEventListener('click', async ()=>{
+  const statusEl = document.getElementById('uploadStatus');
+  DATA = { stores: DEFAULT_DATA.stores.slice(), items: DEFAULT_DATA.items.slice() };
+  renderAll();
+  setFreshness(null);
+  statusEl.textContent = '기본 데이터로 초기화했습니다.';
+  try{
+    await window.storage.delete(STORAGE_KEY, true);
+  }catch(e){ /* 이미 없거나 삭제 실패 - 무시 */ }
+});
+
+/* ==================== 데이터 최신성 표시 ==================== */
+function setFreshness(payload){
+  const el = document.getElementById('freshness');
+  if(!payload){
+    el.textContent = '데이터 기준: 2026-07-15 (기본 데이터)';
+    return;
+  }
+  const dt = new Date(payload.updatedAt);
+  const label = isNaN(dt) ? payload.updatedAt : dt.toLocaleString('ko-KR',{hour12:false});
+  el.textContent = `데이터 기준: ${label} · 출처: ${payload.sourceFile||'업로드 파일'}`;
+}
+
+/* ==================== 초기화(로그인 성공 후 1회 실행) ==================== */
+let appInitialized = false;
+async function initApp(){
+  if(appInitialized) return;
+  appInitialized = true;
+
+  DATA = { stores: DEFAULT_DATA.stores.slice(), items: DEFAULT_DATA.items.slice() };
+  setFreshness(null);
+
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){
+      const stored = JSON.parse(res.value);
+      if(stored && Array.isArray(stored.items) && stored.items.length>0){
+        DATA = stored;
+        setFreshness(stored);
+      }
+    }
+  }catch(e){
+    // 저장된 값이 없으면 get이 에러를 던짐 - 기본 데이터 유지
+  }
+
+  renderAll();
+  tick();
+}
+
+</script>
+</body>
+</html>
