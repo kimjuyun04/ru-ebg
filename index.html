@@ -734,6 +734,8 @@ async function syncFromGoogleSheets(){
   const items = [];
   const failedTabs = [];
  
+  const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+ 
   for(const storeName of KNOWN_STORES){
     try{
       const rows = await fetchTabCSV(sheetId, storeName);
@@ -746,6 +748,30 @@ async function syncFromGoogleSheets(){
     }catch(e){
       failedTabs.push(storeName);
     }
+    await sleep(150); // 구글 쪽 순간 요청 제한을 피하기 위한 간격
+  }
+ 
+  // 실패한 탭은 잠깐 대기 후 한 번 더 재시도
+  if(failedTabs.length > 0){
+    await sleep(500);
+    const stillFailed = [];
+    for(const storeName of failedTabs){
+      try{
+        const rows = await fetchTabCSV(sheetId, storeName);
+        if(rows && rows.length > 0){
+          stores.push(storeName);
+          rows.forEach(r=>{
+            const item = rowToItem(r, storeName);
+            if(item) items.push(item);
+          });
+        }
+      }catch(e){
+        stillFailed.push(storeName);
+      }
+      await sleep(150);
+    }
+    failedTabs.length = 0;
+    failedTabs.push(...stillFailed);
   }
  
   if(items.length===0){
