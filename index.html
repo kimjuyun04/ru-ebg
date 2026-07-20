@@ -793,7 +793,7 @@ async function syncFromGoogleSheets(){
     await window.storage.set(STORAGE_KEY, JSON.stringify(payload), true);
     statusEl.textContent += ' · 공유 저장됨';
   }catch(e){
-    statusEl.textContent += ' · 이 화면에만 적용됨 (실시간 공유는 아티팩트 게시 시에만 가능)';
+    // 게시되지 않은 아티팩트에서는 공유 저장이 항상 실패하므로 별도 안내 없이 조용히 무시
   }
   syncing = false;
 }
