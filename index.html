@@ -198,6 +198,7 @@
     text-transform:uppercase;letter-spacing:.03em;color:#fff;
   }
   .tag.cat{background:rgba(35,33,29,.55);}
+  .tag.solver{background:rgba(58,110,165,.65);text-transform:none;letter-spacing:0;}
   .status-tag{
     font-family:var(--font-mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:3px;
     text-transform:uppercase;margin-left:auto;
@@ -207,8 +208,12 @@
   .status-blocked{background:var(--status-blocked);color:#fff;}
   .status-done{background:rgba(58,110,165,.18);color:var(--status-done);}
  
-  .item-title{font-weight:600;font-size:14px;margin:0 0 4px;line-height:1.35;}
-  .item-kpi{font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;line-height:1.4;white-space:pre-line;}
+  .item-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin:0 0 6px;}
+  .item-title{font-weight:600;font-size:14px;margin:0;line-height:1.35;flex:1 1 auto;min-width:0;}
+  .item-kpi{
+    font-size:11.5px;color:var(--ink-soft);margin:0;line-height:1.4;white-space:pre-line;
+    text-align:right;flex:0 0 auto;max-width:42%;
+  }
   .item-voc{
     font-size:12px;font-style:italic;color:#5A4A3A;border-left:2px solid var(--p1);
     padding:2px 0 2px 8px;margin:0 0 6px;background:rgba(217,128,50,.08);white-space:pre-line;
@@ -419,13 +424,16 @@ function buildTicketEl(store, filtered){
       <div class="item-top">
         <span class="tag" style="background:${prioColor(i.priority)}">${i.priority||'-'}</span>
         <span class="tag cat">${escapeHtml(i.category)||'-'}</span>
+        <span class="tag solver">👤 ${escapeHtml(i.solver)||'-'}</span>
         <span class="status-tag ${statusClass(i.status)}">${escapeHtml(i.status)||'-'}</span>
       </div>
-      <p class="item-title">${escapeHtml(i.title)}</p>
-      <p class="item-kpi">🎯 ${escapeHtml(i.kpi)||'-'}</p>
+      <div class="item-title-row">
+        <p class="item-title">${escapeHtml(i.title)}</p>
+        <p class="item-kpi">🎯 ${escapeHtml(i.kpi)||'-'}</p>
+      </div>
       ${i.voc ? `<p class="item-voc">“${escapeHtml(i.voc)}”</p>` : ''}
       ${i.note ? `<p class="item-note">📝 ${escapeHtml(i.note)}</p>` : ''}
-      <div class="item-foot"><span>${escapeHtml(i.solver)||'-'}</span><span>${escapeHtml(i.date)||'-'}</span></div>
+      <div class="item-foot"><span>${escapeHtml(i.date)||'-'}</span></div>
     </div>
   `).join('');
  
